@@ -1,49 +1,56 @@
-{
-  "name": "InteractiveVideoMenuExtension",
-  "version": "1.0.0",
-  "description": "An extension that lets you add video entries via a small menu and link them to characters. The AI then analyzes context and commentary to decide which video to use when responding.",
-  "ui": {
-    "menu": {
-      "title": "Video Entry Menu",
-      "fields": [
-        {
-          "id": "videoUrl",
-          "label": "Video URL",
-          "type": "text",
-          "placeholder": "https://example.com/myvideo.mp4"
-        },
-        {
-          "id": "videoTitle",
-          "label": "Video Title",
-          "type": "text",
-          "placeholder": "My Cool Video"
-        },
-        {
-          "id": "videoCommentary",
-          "label": "Commentary",
-          "type": "textarea",
-          "placeholder": "This video illustrates the topic because..."
-        },
-        {
-          "id": "characterLink",
-          "label": "Link to Character",
-          "type": "dropdown",
-          "options": [
-            "Alice",
-            "Bob",
-            "Charlie"
-          ]
-        }
-      ],
-      "submitButton": "Save Video Entry"
-    }
-  },
-  "settings": {
-    "videos": []
-  },
-  "logic": {
-    "saveVideoEntry": "function(entry) { /* entry is an object with keys: videoUrl, videoTitle, videoCommentary, characterLink */ this.settings.videos.push(entry); /* Optionally persist these settings */ return 'Video entry saved.'; }",
-    "selectVideoBasedOnContext": "function(context) { \n  /* 'context' may contain current chat text, current character, sentiment, etc. */\n  var videos = this.settings.videos;\n  if (videos.length === 0) return null;\n  \n  /* Placeholder logic: for now simply choose the first video linked to the active character.\n     In your real implementation, analyze context (e.g. keywords, sentiment, etc.)\n     and choose the best match. */\n  var activeChar = context.activeCharacter || '';\n  for (var i = 0; i < videos.length; i++) {\n    if (videos[i].characterLink === activeChar) {\n      return videos[i];\n    }\n  }\n  return videos[0];\n}",
-    "onAnswer": "function(answer, context) { \n  /* 'answer' is the AI response and 'context' is an object with details of the current chat, sentiment, active character, etc. */\n  var video = this.logic.selectVideoBasedOnContext(context);\n  if (video) {\n    var prepended = video.videoTitle + '\\n' + video.videoUrl + '\\n' + video.videoCommentary + '\\n\\n';\n    return prepended + answer;\n  } else {\n    return answer;\n  }\n}"
-  }
+// Example extension file: videoLoopExtension.js
+
+// Ensure this file is loaded by SillyTavern's extensions system
+// (For example, by placing it in your extensions folder and referencing it in your configuration.)
+
+// Define settings for the video segment
+const videoSettings = {
+  videoUrl: "https://packaged-media.redd.it/zapzqp0vv7ie1/pb/m2-res_480p.mp4?m=DASHPlaylist.mpd&v=1&e=1739224800&s=3e8e92896d05c8dad8ab3aff69d792ba11d8dbe0",
+  startTime: 0,
+  endTime: 5
+};
+
+// This function returns an HTML string that includes the video element with an inline script.
+// (Note: In some SillyTavern setups, inline scripts may be filtered or require specific handling.)
+function getVideoSegmentHTML() {
+  return `
+    <div class="video-segment">
+      <video id="loopVideo" width="640" height="360" autoplay muted controls src="${videoSettings.videoUrl}">
+        Your browser does not support the video tag.
+      </video>
+      <script>
+        (function(){
+          var video = document.getElementById('loopVideo');
+          var start = ${videoSettings.startTime};
+          var end = ${videoSettings.endTime};
+          video.addEventListener('loadedmetadata', function() {
+            video.currentTime = start;
+          });
+          video.addEventListener('timeupdate', function() {
+            if(video.currentTime >= end) {
+              video.currentTime = start;
+              video.play();
+            }
+          });
+        })();
+      <\/script>
+    </div>
+  `;
+}
+
+// This function takes the AI answer and wraps it with the video element.
+function modifyAnswer(answer) {
+  // Prepend the video segment to the AI's answer
+  return getVideoSegmentHTML() + "<div class='ai-answer'>" + answer + "</div>";
+}
+
+// Register an onAnswer hook with SillyTavern.
+// (The exact API may vary; for example, some versions expect you to call a global function.)
+if (typeof registerOnAnswerHook === "function") {
+  registerOnAnswerHook(function(answer, context) {
+    // Optionally, you can check context (e.g. the active character) to decide whether to include the video.
+    return modifyAnswer(answer);
+  });
+} else {
+  console.warn("videoLoopExtension: registerOnAnswerHook not found. Please check your SillyTavern extension API.");
 }
